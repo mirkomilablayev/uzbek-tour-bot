@@ -92,7 +92,6 @@ public class BotService extends TelegramLongPollingBot {
                 return;
             }
 
-
             if (Steps.SEND_ADS.equals(user.getStep())) {
                 sendAdsPage(update, text, user, sendMessage);
                 return;
@@ -115,14 +114,7 @@ public class BotService extends TelegramLongPollingBot {
         execute(sendDocument);
     }
 
-    private void prepareforAds(SendMessage sendMessage, User user) throws TelegramApiException {
-        user.setStep(Steps.SEND_ADS);
-        user.setChildStep(Steps.send_ads_photo);
-        logicService.save(user);
-        sendMessage.setReplyMarkup(buttonService.rejectButton());
-        sendMessage.setText("Reklama rasmini yuboring!");
-        execute(sendMessage);
-    }
+
 
     private void rejectPage(SendMessage sendMessage, User user) throws TelegramApiException {
         logicService.closeActiveAds();
@@ -186,10 +178,26 @@ public class BotService extends TelegramLongPollingBot {
         }
     }
 
+
+    private void prepareforAds(SendMessage sendMessage, User user) throws TelegramApiException {
+        user.setStep(Steps.SEND_ADS);
+        user.setChildStep(Steps.send_ads_photo);
+        logicService.save(user);
+        sendMessage.setReplyMarkup(buttonService.rejectButton());
+        sendMessage.setText("Reklama Faylini yuboring, (Video-Rasm)!");
+        execute(sendMessage);
+    }
+
+
     private void sendAdsPage(Update update, String text, User user, SendMessage sendMessage) throws TelegramApiException {
         if (Steps.send_ads_photo.equals(user.getChildStep())) {
             FileDto fileDto = getFileId(update);
 
+            if (fileDto == null){
+                sendMessage.setText("Reklama fayli faqat rasm yoki video bo'lishi mumkin!");
+                execute(sendMessage);
+                return;
+            }
             if (fileDto.getFileId() == null) {
                 sendMessage.setText("Rasm yoki video topilmadi qaytadan urinib ko'ring!");
                 execute(sendMessage);
@@ -205,7 +213,6 @@ public class BotService extends TelegramLongPollingBot {
             sendMessage.setText("Reklamangiz uchun textni yuboring!");
             sendMessage.setReplyMarkup(buttonService.rejectButton());
             execute(sendMessage);
-            return;
         } else if (Steps.send_ads_text.equals(user.getChildStep())) {
             Ads ads = logicService.getActiveAds();
             if (ads.getId() == null) {
@@ -247,7 +254,7 @@ public class BotService extends TelegramLongPollingBot {
     private void sendAds(SendMessage sendMessage, User user) throws TelegramApiException {
         Ads ads = logicService.getActiveAds();
         if (ads.getId() == null) {
-            sendMessage.setText("Reklama Kontenti Topilmadi!");
+            sendMessage.setText("Ads Topilmadi!");
             sendMessage.setReplyMarkup(buttonService.adminMainMenu());
             execute(sendMessage);
             logicService.closeActiveAds();
@@ -255,7 +262,7 @@ public class BotService extends TelegramLongPollingBot {
         }
         File file = getFileById(ads);
         if (file == null) {
-            sendMessage.setText("Reklama Kontenti Topilmadi!");
+            sendMessage.setText("Reklama Fayli Topilmadi!");
             sendMessage.setReplyMarkup(buttonService.adminMainMenu());
             execute(sendMessage);
             logicService.closeActiveAds();
@@ -301,6 +308,8 @@ public class BotService extends TelegramLongPollingBot {
                 Video video = message.getVideo();
                 fileDto.setFileId(video.getFileId());
                 fileDto.setContentType(".mp4");
+            }else {
+                return null;
             }
         }
         return fileDto;
