@@ -3,12 +3,9 @@ package uz.tour.uzbektourbot.service;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
-import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
+import org.telegram.telegrambots.meta.api.methods.send.*;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
-import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
-import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.methods.send.SendVideo;
 import org.telegram.telegrambots.meta.api.objects.*;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -38,6 +35,8 @@ public class BotService extends TelegramLongPollingBot {
     private final LogicService logicService;
     private final ButtonService buttonService;
     private final ApplicantRepository applicantRepository;
+    private final static Double LATITUDE = 41.368647;
+    private final static Double LONGITUDE = 69.293928;
 
     @Override
     public String getBotUsername() {
@@ -69,6 +68,22 @@ public class BotService extends TelegramLongPollingBot {
 
 
         if (!user.getIsAdmin()) {
+            if (ButtonUtils.CONTACTS.equals(text)) {
+                sendMessage.setText("Bizning ijtimoiy tarmoqlardagi sahifalarimiz\n" +
+                        "Admin @sizor_travel\n" +
+                        "Telefon raqam +998951903333\n" +
+                        "Telegram @sizortravel\n" +
+                        "Instagram www.instagram.com/sizortravel.uz");
+                execute(sendMessage);
+                return;
+            } else if (ButtonUtils.LOCATION.equals(text)) {
+                SendLocation sendLocation = new SendLocation();
+                sendLocation.setChatId(logicService.getChatId(update));
+                sendLocation.setLatitude(LATITUDE);
+                sendLocation.setLongitude(LONGITUDE);
+                execute(sendLocation);
+                return;
+            }
             getContactUser(update, sendMessage, user);
         } else {
             if (ButtonUtils.REJECT_BUTTON.equals(text)) {
@@ -115,9 +130,8 @@ public class BotService extends TelegramLongPollingBot {
     }
 
 
-
     private void rejectPage(SendMessage sendMessage, User user) throws TelegramApiException {
-        logicService.closeActiveAds();
+        logicService.closeActiveAds(user);
         logicService.makeUserRegistered(user);
         ReplyKeyboardMarkup buttons = buttonService.adminMainMenu();
         sendMessage.setReplyMarkup(buttons);
@@ -137,11 +151,12 @@ public class BotService extends TelegramLongPollingBot {
                 user.setIsAuthenticated(true);
                 logicService.save(user);
                 sendMessage.setText("Assalomu alaykum, Siz bizning eng so'nggi yangiliklarimizni ushbu botdan olishingiz mumkin");
-                sendMessage.setReplyMarkup(buttonService.createEmptyKeyboard());
+                sendMessage.setReplyMarkup(buttonService.userMainMenu());
                 execute(sendMessage);
                 return;
             }
         }
+
         sendMessage.setText("Xato Buyruq kiritildi\uD83D\uDE0A\n" +
                 "Yangiliklarni kuting");
         execute(sendMessage);
@@ -156,6 +171,13 @@ public class BotService extends TelegramLongPollingBot {
         applicantRepository.save(applicant);
         sendMessage.setText("Sizning arizangiz yuborildi, Tez orada o'zimiz aloqaga chiqamiz !");
         execute(sendMessage);
+
+        long count = applicantRepository.count();
+        for (User admin : logicService.findAllAdmin()) {
+            sendMessage.setText("Yangi ariza, Sizda (" + count + ") ariza mavjud");
+            sendMessage.setChatId(admin.getChatId());
+            execute(sendMessage);
+        }
     }
 
     private void startMethod(SendMessage sendMessage, User user) throws TelegramApiException {
@@ -166,7 +188,7 @@ public class BotService extends TelegramLongPollingBot {
             execute(sendMessage);
         } else if (user.getIsAuthenticated()) {
             sendMessage.setText("Assalomu alaykum, Siz bizning eng so'nggi yangiliklarimizni ushbu botdan olishingiz mumkin");
-            sendMessage.setReplyMarkup(buttonService.createEmptyKeyboard());
+            sendMessage.setReplyMarkup(buttonService.userMainMenu());
             execute(sendMessage);
         } else {
             ReplyKeyboardMarkup button = buttonService.shareContactButton();
@@ -193,7 +215,7 @@ public class BotService extends TelegramLongPollingBot {
         if (Steps.send_ads_photo.equals(user.getChildStep())) {
             FileDto fileDto = getFileId(update);
 
-            if (fileDto == null){
+            if (fileDto == null) {
                 sendMessage.setText("Reklama fayli faqat rasm yoki video bo'lishi mumkin!");
                 execute(sendMessage);
                 return;
@@ -206,6 +228,7 @@ public class BotService extends TelegramLongPollingBot {
             user.setChildStep(Steps.send_ads_text);
             Ads ads = new Ads();
             ads.setIsActive(true);
+            ads.setUserId(user.getId());
             ads.setFileId(fileDto.getFileId());
             ads.setContentType(fileDto.getContentType());
             logicService.saveAds(ads);
@@ -214,7 +237,13 @@ public class BotService extends TelegramLongPollingBot {
             sendMessage.setReplyMarkup(buttonService.rejectButton());
             execute(sendMessage);
         } else if (Steps.send_ads_text.equals(user.getChildStep())) {
-            Ads ads = logicService.getActiveAds();
+            if (text.equals("error_text")) {
+                sendMessage.setText("Iltimos to'g'ri text yuboring");
+                sendMessage.setReplyMarkup(buttonService.rejectButton());
+                execute(sendMessage);
+                return;
+            }
+            Ads ads = logicService.getActiveAds(user);
             if (ads.getId() == null) {
                 sendMessage.setText("Reklama topilmadi!");
                 sendMessage.setReplyMarkup(buttonService.adminMainMenu());
@@ -252,12 +281,12 @@ public class BotService extends TelegramLongPollingBot {
     }
 
     private void sendAds(SendMessage sendMessage, User user) throws TelegramApiException {
-        Ads ads = logicService.getActiveAds();
+        Ads ads = logicService.getActiveAds(user);
         if (ads.getId() == null) {
             sendMessage.setText("Ads Topilmadi!");
             sendMessage.setReplyMarkup(buttonService.adminMainMenu());
             execute(sendMessage);
-            logicService.closeActiveAds();
+            logicService.closeActiveAds(user);
             return;
         }
         File file = getFileById(ads);
@@ -265,7 +294,7 @@ public class BotService extends TelegramLongPollingBot {
             sendMessage.setText("Reklama Fayli Topilmadi!");
             sendMessage.setReplyMarkup(buttonService.adminMainMenu());
             execute(sendMessage);
-            logicService.closeActiveAds();
+            logicService.closeActiveAds(user);
             return;
         }
         sendMessage.setText("Yuborish boshlandi...");
@@ -274,7 +303,8 @@ public class BotService extends TelegramLongPollingBot {
             if (".jpg".equals(ads.getContentType())) {
                 SendPhoto sendPhoto = new SendPhoto();
                 sendPhoto.setChatId(allUser.getChatId());
-                sendPhoto.setCaption("Assalomu alaykum " + allUser.getFullName() + "\n\n" + ads.getText());
+                sendPhoto.setCaption("Assalomu alaykum <b>" + allUser.getFullName() + "</b>\n\n" + ads.getText());
+                sendPhoto.setParseMode("HTML");
                 sendPhoto.setPhoto(new InputFile(file));
                 sendPhoto.setReplyMarkup(buttonService.createInlineButton(ads.getId()));
                 execute(sendPhoto);
@@ -291,7 +321,7 @@ public class BotService extends TelegramLongPollingBot {
         sendMessage.setText("Yuborish Tugadi...");
         sendMessage.setReplyMarkup(buttonService.adminMainMenu());
         execute(sendMessage);
-        logicService.closeActiveAds();
+        logicService.closeActiveAds(user);
     }
 
 
@@ -308,7 +338,7 @@ public class BotService extends TelegramLongPollingBot {
                 Video video = message.getVideo();
                 fileDto.setFileId(video.getFileId());
                 fileDto.setContentType(".mp4");
-            }else {
+            } else {
                 return null;
             }
         }

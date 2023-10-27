@@ -12,4 +12,7 @@ public interface ButtonUtils {
 
     String SEND = "Yuborish ✅";
 
+    String LOCATION = "Manzilimiz \uD83D\uDCCD";
+    String CONTACTS = "Kontaktlarimiz \uD83D\uDCDE";
+
 }

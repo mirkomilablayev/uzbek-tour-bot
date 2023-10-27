@@ -11,6 +11,7 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import uz.tour.uzbektourbot.entity.*;
 import uz.tour.uzbektourbot.util.Steps;
 
+import javax.jws.soap.SOAPBinding;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -43,7 +44,11 @@ public class LogicService {
 
     }
 
-    public void makeUserRegistered(User user){
+    public List<User> findAllAdmin() {
+        return userRepository.findAllByIsAdmin(true);
+    }
+
+    public void makeUserRegistered(User user) {
         user.setStep(Steps.REGISTERED);
         user.setChildStep(null);
         user = userRepository.save(user);
@@ -159,8 +164,8 @@ public class LogicService {
         return adsRepository.save(ads);
     }
 
-    public void closeActiveAds() {
-        Optional<Ads> adsOptional = adsRepository.findByIsActive(true);
+    public void closeActiveAds(User user) {
+        Optional<Ads> adsOptional = adsRepository.findByUserIdAndIsActive(user.getId(), true);
         if (adsOptional.isPresent()) {
             Ads ads = adsOptional.get();
             ads.setIsActive(false);
@@ -239,7 +244,7 @@ public class LogicService {
         }
     }
 
-    public Ads getActiveAds() {
-        return adsRepository.findByIsActive(true).orElse(new Ads());
+    public Ads getActiveAds(User user) {
+        return adsRepository.findByUserIdAndIsActive(user.getId(), true).orElse(new Ads());
     }
 }

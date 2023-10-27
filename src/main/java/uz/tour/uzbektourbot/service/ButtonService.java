@@ -67,6 +67,29 @@ public class ButtonService {
         return replyKeyboardMarkup;
     }
 
+    public ReplyKeyboardMarkup userMainMenu() {
+        List<String> buttonNames = new ArrayList<>(Arrays.asList(ButtonUtils.LOCATION, ButtonUtils.CONTACTS));
+        ReplyKeyboardMarkup replyKeyboardMarkup = getReplyKeyboardMarkup();
+        List<KeyboardRow> keyboardRowList = new ArrayList<>();
+        KeyboardRow keyboardRow = new KeyboardRow();
+        int i = 0;
+        int counter = 0;
+        int qoldiq = buttonNames.size() % 2;
+        int size = buttonNames.size();
+        for (String name : buttonNames) {
+            keyboardRow.add(name);
+            i++;
+            if (i == 2 || (size - counter == qoldiq && i == qoldiq)) {
+                keyboardRowList.add(keyboardRow);
+                keyboardRow = new KeyboardRow();
+                counter += i;
+                i = 0;
+            }
+        }
+        replyKeyboardMarkup.setKeyboard(keyboardRowList);
+        return replyKeyboardMarkup;
+    }
+
 
     public ReplyKeyboardMarkup createButtons(int countPerLine, List<String> buttonNames) {
         ReplyKeyboardMarkup replyKeyboardMarkup = getReplyKeyboardMarkup();

@@ -15,6 +15,7 @@ public class Ads {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private Long userId;
     private String fileId;
     @Column(columnDefinition = "VARCHAR(3200)")
     private String text;
